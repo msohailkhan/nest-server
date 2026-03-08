@@ -1,0 +1,53 @@
+GET http://localhost:3000
+
+
+####
+GET http://localhost:3001/users
+
+
+####
+POST http://localhost:3001/users
+Content-Type: application/json
+
+{
+    "name": "admin",
+    "email": "admin@gmail.com",
+    "password": "admin",
+    "role": "admin"
+}
+
+####
+# ─── Company Detail APIs ──────────────────────────────────────────────────────
+
+# Create / update own company detail (COMPANY role)
+POST http://localhost:3001/company-detail
+Content-Type: application/json
+Authorization: Bearer <access_token>
+
+{
+    "companyName": "Acme Corp",
+    "contactEmail": "contact@acme.com",
+    "industry": "Technology",
+    "website": "www.acme.com",
+    "linkedIn": "www.linkedin.com/company/acme",
+    "description": "We build things.",
+    "address": "123 Main St",
+    "phone": "+1-555-0100",
+    "foundedYear": "2010",
+    "companysize": "51-200"
+}
+
+####
+# Get own company detail (COMPANY role)
+GET http://localhost:3001/company-detail/me
+Authorization: Bearer <access_token>
+
+####
+# Get all company details (ADMIN role)
+GET http://localhost:3001/company-detail
+Authorization: Bearer <access_token>
+
+####
+# Get company detail by userId (ADMIN role)
+GET http://localhost:3001/company-detail/<userId>
+Authorization: Bearer <access_token>
