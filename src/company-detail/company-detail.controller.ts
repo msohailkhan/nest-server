@@ -46,3 +46,4 @@ export class CompanyDetailController {
     return this.companyDetailService.findByUserId(userId);
   }
 }
+  

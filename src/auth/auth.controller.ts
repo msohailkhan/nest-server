@@ -1,4 +1,4 @@
-﻿import { Controller, Post, Body, UseGuards, Req, Res, HttpCode, HttpStatus } from '@nestjs/common';
+﻿import { Controller, Get, Post, Body, UseGuards, Req, Res, HttpCode, HttpStatus } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -64,6 +64,13 @@ export class AuthController {
     res.clearCookie('access_token', COOKIE_CLEAR);
     res.clearCookie('refresh_token', COOKIE_CLEAR);
     return { message: 'Logged out successfully' };
+  }
+
+  @UseGuards(JwtAccessGuard)
+  @Get('me')
+  async getMe(@Req() req: Request) {
+    const user = req.user as { userId: string };
+    return this.authService.getMe(user.userId);
   }
 
   @Post('forgot-password')

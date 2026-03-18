@@ -32,4 +32,12 @@ export class UsersController {
   updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto) {
     return this.usersService.updateStatus(id, dto);
   }
+
+  // Update user profile
+  @UseGuards(JwtAccessGuard)
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() updateDto: any) {
+    return this.usersService.update(id, updateDto);
+  }
 }
+

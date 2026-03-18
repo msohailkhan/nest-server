@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { StudentDetail, StudentDetailDocument } from './schemas/student-detail.schema';
-import { StudentDetailDto } from './dto/student-detail.dto';
+import { StudentDetailPayload } from './dto/student-detail.dto';
 import { UsersService } from '../users/users.service';
 
 @Injectable()
@@ -13,12 +13,12 @@ export class StudentDetailService {
     private readonly usersService: UsersService,
   ) {}
 
-  async upsert(userId: string, dto: StudentDetailDto): Promise<StudentDetail> {
+  async upsert(userId: string, dto: StudentDetailPayload): Promise<StudentDetail> {
     const detail = await this.studentDetailModel
       .findOneAndUpdate(
         { userId },
         { ...dto, userId },
-        { new: true, upsert: true },
+        { returnDocument: 'after', upsert: true },
       )
       .exec();
     await this.usersService.markProfileCompleted(userId);

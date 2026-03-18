@@ -90,6 +90,16 @@ export class AuthService {
     return { ...tokens, name: user.name, email: user.email, role: user.role, profileCompleted: user.profileCompleted };
   }
 
+  // ─── Get Me ───────────────────────────────────────────────────────────────
+  async getMe(userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) throw new UnauthorizedException('User not found');
+    const { password, refreshToken, ...userDetails } = (user as any).toObject
+      ? (user as any).toObject()
+      : (user as any);
+    return userDetails;
+  }
+
   // ─── Logout ────────────────────────────────────────────────────────────────
   async logout(userId: string) {
     await this.usersService.updateRefreshToken(userId, null);

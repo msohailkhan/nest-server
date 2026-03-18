@@ -7,6 +7,8 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { CompanyDetailModule } from './company-detail/company-detail.module';
 import { StudentDetailModule } from './student-detail/student-detail.module';
+import { JobsModule } from './jobs/jobs.module';
+import { ConversationsModule } from './conversations/conversations.module';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { StudentDetailModule } from './student-detail/student-detail.module';
     AuthModule,
     CompanyDetailModule,
     StudentDetailModule,
+    JobsModule,
+    ConversationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -31,13 +31,10 @@ export class CompanyDetail {
     address?: string | null;
 
     @Prop({ type: String, default: null })
-    phone?: string | null;
+    contactPhone?: string | null;
 
     @Prop({ type: String, default: null })
     foundedYear?: string | null;
-
-    @Prop({ type: String, default: null })
-    companysize?: string | null;
 
     @Prop({ type: String, default: null })
     size?: string | null;

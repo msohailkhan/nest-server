@@ -45,7 +45,16 @@ export class UsersService {
 
   async updateStatus(userId: string, dto: UpdateStatusDto): Promise<User> {
     const user = await this.userModel
-      .findByIdAndUpdate(userId, { status: dto.status }, { new: true })
+      .findByIdAndUpdate(userId, { status: dto.status }, { returnDocument: 'after' })
+      .select('-password')
+      .exec();
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
+  async update(userId: string, updateData: any): Promise<User> {
+    const user = await this.userModel
+      .findByIdAndUpdate(userId, updateData, { new: true })
       .select('-password')
       .exec();
     if (!user) throw new NotFoundException('User not found');
