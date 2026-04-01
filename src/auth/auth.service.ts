@@ -22,31 +22,23 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {
-    const mailUser = this.configService.get<string>('MAIL_USER');
+    // Strip spaces from app password (Gmail displays them grouped but ignores spaces)
     const mailPass = (this.configService.get<string>('MAIL_PASS') ?? '').replace(/\s/g, '');
-
-    // Validate required email credentials
-    if (!mailUser || !mailPass) {
-      console.warn(
-        '[Auth] WARNING: Email credentials not configured. Forgot password emails will fail.',
-        { hasMailUser: !!mailUser, hasMailPass: !!mailPass },
-      );
-    }
 
     this.mailTransporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,  // port 587 uses STARTTLS (more reliable in cloud/production)
+      port: 465,
+      secure: true,   // port 465 = direct SSL (no STARTTLS handshake, less likely to be blocked)
       auth: {
-        user: mailUser,
+        user: this.configService.get<string>('MAIL_USER'),
         pass: mailPass,
       },
       tls: {
         rejectUnauthorized: false,
       },
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-      socketTimeout: 15000,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000,
     });
   }
 
@@ -203,18 +195,8 @@ export class AuthService {
     const resetUrl = `${clientUrl}/reset-password?token=${token}`;
 
     try {
-      const mailUser = this.configService.get<string>('MAIL_USER');
-      if (!mailUser) {
-        const errorMsg = '[Auth] Cannot send reset email: MAIL_USER environment variable not configured.';
-        console.error(errorMsg);
-        throw new BadRequestException({
-          message: 'Email service misconfigured',
-          details: 'MAIL_USER not set - check production environment variables',
-        });
-      }
-
       await this.mailTransporter.sendMail({
-        from: `"JobBridge" <${mailUser}>`,
+        from: `"JobBridge" <${this.configService.get<string>('MAIL_USER')}>`,
         to: user.email,
         subject: 'Reset your JobBridge password',
         html: `
@@ -229,38 +211,8 @@ export class AuthService {
         `,
       });
     } catch (mailError) {
-      const err = mailError as any;
-      
-      // Build detailed error response for debugging
-      const errorDetails = {
-        timestamp: new Date().toISOString(),
-        message: err.message || 'Unknown error',
-        code: err.code,
-        command: err.command,
-        smtp_response: err.response,
-        config: {
-          has_mail_user: !!this.configService.get<string>('MAIL_USER'),
-          has_mail_pass: !!this.configService.get<string>('MAIL_PASS'),
-          has_client_url: !!this.configService.get<string>('CLIENT_URL'),
-        },
-      };
-
-      console.error('[Auth] Failed to send reset email:', JSON.stringify(errorDetails, null, 2));
-
-      // Determine if it's a config issue or SMTP issue
-      let userFacingMessage = 'Failed to send reset email. Please try again.';
-      if (err.code === 'EAUTH' || err.message?.includes('Invalid login')) {
-        userFacingMessage = 'Email authentication failed. Check MAIL_USER and MAIL_PASS env vars.';
-      } else if (err.code === 'ENOTFOUND' || err.message?.includes('getaddrinfo')) {
-        userFacingMessage = 'Cannot connect to email server. Check network/firewall.';
-      } else if (err.code?.startsWith('SMTP')) {
-        userFacingMessage = `SMTP Error ${err.code}: ${err.message}`;
-      }
-
-      throw new BadRequestException({
-        message: userFacingMessage,
-        debug: errorDetails,
-      });
+      console.error('[Auth] Failed to send reset email:', mailError);
+      throw new BadRequestException('Failed to send reset email. Please check your email address and try again.');
     }
 
     return { message: 'If that email exists, a reset link has been sent.' };
