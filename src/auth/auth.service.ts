@@ -205,8 +205,12 @@ export class AuthService {
     try {
       const mailUser = this.configService.get<string>('MAIL_USER');
       if (!mailUser) {
-        console.error('[Auth] Cannot send reset email: MAIL_USER environment variable not configured.');
-        throw new BadRequestException('Email service not configured on server. Please contact support.');
+        const errorMsg = '[Auth] Cannot send reset email: MAIL_USER environment variable not configured.';
+        console.error(errorMsg);
+        throw new BadRequestException({
+          message: 'Email service misconfigured',
+          details: 'MAIL_USER not set - check production environment variables',
+        });
       }
 
       await this.mailTransporter.sendMail({
@@ -226,12 +230,37 @@ export class AuthService {
       });
     } catch (mailError) {
       const err = mailError as any;
-      console.error('[Auth] Failed to send reset email:', {
-        error: err.message || err,
+      
+      // Build detailed error response for debugging
+      const errorDetails = {
+        timestamp: new Date().toISOString(),
+        message: err.message || 'Unknown error',
         code: err.code,
         command: err.command,
+        smtp_response: err.response,
+        config: {
+          has_mail_user: !!this.configService.get<string>('MAIL_USER'),
+          has_mail_pass: !!this.configService.get<string>('MAIL_PASS'),
+          has_client_url: !!this.configService.get<string>('CLIENT_URL'),
+        },
+      };
+
+      console.error('[Auth] Failed to send reset email:', JSON.stringify(errorDetails, null, 2));
+
+      // Determine if it's a config issue or SMTP issue
+      let userFacingMessage = 'Failed to send reset email. Please try again.';
+      if (err.code === 'EAUTH' || err.message?.includes('Invalid login')) {
+        userFacingMessage = 'Email authentication failed. Check MAIL_USER and MAIL_PASS env vars.';
+      } else if (err.code === 'ENOTFOUND' || err.message?.includes('getaddrinfo')) {
+        userFacingMessage = 'Cannot connect to email server. Check network/firewall.';
+      } else if (err.code?.startsWith('SMTP')) {
+        userFacingMessage = `SMTP Error ${err.code}: ${err.message}`;
+      }
+
+      throw new BadRequestException({
+        message: userFacingMessage,
+        debug: errorDetails,
       });
-      throw new BadRequestException('Failed to send reset email. Please check your email address and try again.');
     }
 
     return { message: 'If that email exists, a reset link has been sent.' };
