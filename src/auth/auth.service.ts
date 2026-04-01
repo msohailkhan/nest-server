@@ -35,8 +35,8 @@ export class AuthService {
 
     this.mailTransporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,   // port 465 = direct SSL (no STARTTLS handshake, less likely to be blocked)
+      port: 587,
+      secure: false,  // port 587 uses STARTTLS (more reliable in cloud/production)
       auth: {
         user: mailUser,
         pass: mailPass,
@@ -44,9 +44,9 @@ export class AuthService {
       tls: {
         rejectUnauthorized: false,
       },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 15000,
     });
   }
 
