@@ -22,15 +22,23 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {
-    // Strip spaces from app password (Gmail displays them grouped but ignores spaces)
+    const mailUser = this.configService.get<string>('MAIL_USER');
     const mailPass = (this.configService.get<string>('MAIL_PASS') ?? '').replace(/\s/g, '');
+
+    // Validate required email credentials
+    if (!mailUser || !mailPass) {
+      console.warn(
+        '[Auth] WARNING: Email credentials not configured. Forgot password emails will fail.',
+        { hasMailUser: !!mailUser, hasMailPass: !!mailPass },
+      );
+    }
 
     this.mailTransporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 465,
       secure: true,   // port 465 = direct SSL (no STARTTLS handshake, less likely to be blocked)
       auth: {
-        user: this.configService.get<string>('MAIL_USER'),
+        user: mailUser,
         pass: mailPass,
       },
       tls: {
@@ -195,8 +203,14 @@ export class AuthService {
     const resetUrl = `${clientUrl}/reset-password?token=${token}`;
 
     try {
+      const mailUser = this.configService.get<string>('MAIL_USER');
+      if (!mailUser) {
+        console.error('[Auth] Cannot send reset email: MAIL_USER environment variable not configured.');
+        throw new BadRequestException('Email service not configured on server. Please contact support.');
+      }
+
       await this.mailTransporter.sendMail({
-        from: `"JobBridge" <${this.configService.get<string>('MAIL_USER')}>`,
+        from: `"JobBridge" <${mailUser}>`,
         to: user.email,
         subject: 'Reset your JobBridge password',
         html: `
@@ -211,7 +225,12 @@ export class AuthService {
         `,
       });
     } catch (mailError) {
-      console.error('[Auth] Failed to send reset email:', mailError);
+      const err = mailError as any;
+      console.error('[Auth] Failed to send reset email:', {
+        error: err.message || err,
+        code: err.code,
+        command: err.command,
+      });
       throw new BadRequestException('Failed to send reset email. Please check your email address and try again.');
     }
 
