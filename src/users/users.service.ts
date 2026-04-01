@@ -3,36 +3,21 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
-import * as nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 import { User, UserDocument, UserRole, UserStatus } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 
 @Injectable()
 export class UsersService {
-  private readonly mailTransporter: nodemailer.Transporter;
-
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private readonly configService: ConfigService,
   ) {
-    const mailPass = (this.configService.get<string>('MAIL_PASS') ?? '').replace(/\s/g, '');
-
-    this.mailTransporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: this.configService.get<string>('MAIL_USER'),
-        pass: mailPass,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
-    });
+    const sendgridApiKey = this.configService.get<string>('SENDGRID_API_KEY');
+    if (sendgridApiKey) {
+      sgMail.setApiKey(sendgridApiKey);
+    }
   }
 
   async create(createUserDto: CreateUserDto): Promise<Omit<UserDocument, 'password'>> {
@@ -154,10 +139,15 @@ export class UsersService {
   private async sendApprovalEmail(toEmail: string, userName: string): Promise<void> {
     const clientUrl = this.configService.get<string>('CLIENT_URL') ?? 'http://localhost:3000';
     const loginUrl = `${clientUrl.replace(/\/$/, '')}/login`;
+    const fromEmail = this.configService.get<string>('SENDGRID_FROM_EMAIL') ?? 'noreply@jobbridge.com';
 
     try {
-      await this.mailTransporter.sendMail({
-        from: `"JobBridge" <${this.configService.get<string>('MAIL_USER')}>`,
+      console.log('[Users] Sending account approval email...');
+      console.log(`  From: ${fromEmail}`);
+      console.log(`  To: ${toEmail}`);
+      console.log(`  User: ${userName}`);
+      await sgMail.send({
+        from: fromEmail,
         to: toEmail,
         subject: 'Account Approved',
         html: `
@@ -170,8 +160,18 @@ export class UsersService {
           </div>
         `,
       });
-    } catch (error) {
-      console.error('[Users] Failed to send approval email:', error);
+      console.log('[Users] ✓ Account approval email sent successfully');
+    } catch (error: any) {
+      const errorCode = error.code || 'UNKNOWN';
+      const errorMessage = error.response?.body?.errors?.[0]?.message || error.message || 'Unknown error';
+      console.error('[Users] Failed to send approval email:');
+      console.error(`  Code: ${errorCode}`);
+      console.error(`  From Email: ${fromEmail}`);
+      console.error(`  To Email: ${toEmail}`);
+      console.error(`  Message: ${errorMessage}`);
+      if (error.response?.body?.errors) {
+        console.error(`  Details:`, error.response.body.errors);
+      }
     }
   }
 }

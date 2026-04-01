@@ -8,38 +8,22 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import * as nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { UserStatus } from '../users/schemas/user.schema';
 
 @Injectable()
 export class AuthService {
-  private readonly mailTransporter: nodemailer.Transporter;
-
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {
-    // Strip spaces from app password (Gmail displays them grouped but ignores spaces)
-    const mailPass = (this.configService.get<string>('MAIL_PASS') ?? '').replace(/\s/g, '');
-
-    this.mailTransporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,   // port 465 = direct SSL (no STARTTLS handshake, less likely to be blocked)
-      auth: {
-        user: this.configService.get<string>('MAIL_USER'),
-        pass: mailPass,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
-    });
+    const sendgridApiKey = this.configService.get<string>('SENDGRID_API_KEY');
+    if (sendgridApiKey) {
+      sgMail.setApiKey(sendgridApiKey);
+    }
   }
 
   // ─── Login ────────────────────────────────────────────────────────────────
@@ -193,10 +177,14 @@ export class AuthService {
 
     const clientUrl = this.configService.get<string>('CLIENT_URL') ?? 'http://localhost:3000';
     const resetUrl = `${clientUrl}/reset-password?token=${token}`;
+    const fromEmail = this.configService.get<string>('SENDGRID_FROM_EMAIL') ?? 'noreply@jobbridge.com';
 
     try {
-      await this.mailTransporter.sendMail({
-        from: `"JobBridge" <${this.configService.get<string>('MAIL_USER')}>`,
+      console.log('[Auth] Sending password reset email...');
+      console.log(`  From: ${fromEmail}`);
+      console.log(`  To: ${user.email}`);
+      await sgMail.send({
+        from: fromEmail,
         to: user.email,
         subject: 'Reset your JobBridge password',
         html: `
@@ -210,9 +198,23 @@ export class AuthService {
           </div>
         `,
       });
-    } catch (mailError) {
-      console.error('[Auth] Failed to send reset email:', mailError);
-      throw new BadRequestException('Failed to send reset email. Please check your email address and try again.');
+      console.log('[Auth] ✓ Password reset email sent successfully');
+    } catch (mailError: any) {
+      const errorCode = mailError.code || 'UNKNOWN';
+      const errorMessage = mailError.response?.body?.errors?.[0]?.message || mailError.message || 'Unknown error';
+      console.error('[Auth] Failed to send reset email:');
+      console.error(`  Code: ${errorCode}`);
+      console.error(`  From Email: ${fromEmail}`);
+      console.error(`  To Email: ${user.email}`);
+      console.error(`  Message: ${errorMessage}`);
+      if (mailError.response?.body?.errors) {
+        console.error(`  Details:`, mailError.response.body.errors);
+      }
+      throw new BadRequestException(
+        errorCode === 403 
+          ? `Email configuration error (${errorCode}): "${fromEmail}" is not verified in SendGrid. Add it to your SENDGRID_FROM_EMAIL in .env`
+          : `Failed to send reset email: ${errorMessage}`,
+      );
     }
 
     return { message: 'If that email exists, a reset link has been sent.' };
